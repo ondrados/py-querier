@@ -6,10 +6,29 @@ import models
 from db import get_session
 
 
+async def get_books_by_author(author_id: int):
+    async with get_session() as s:
+        sql = select(models.Book).where(models.Book.author_id == author_id)
+        db_books = (await s.execute(sql)).scalars().unique().all()
+    return [Book(
+        id=book.id,
+        name=book.name,
+        author=Author(
+            id=book.author.id,
+            name=book.author.name
+        ) if book.author else None
+    ) for book in db_books]
+
+
 @strawberry.type
 class Author:
     id: strawberry.ID
     name: str
+
+    # books: list["Book"] = strawberry.field(resolver=lambda self: get_books_by_author(self.id))
+    @strawberry.field
+    async def books(self) -> list["Book"]:
+        return await get_books_by_author(int(self.id))
 
 
 @strawberry.type

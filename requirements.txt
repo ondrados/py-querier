@@ -1,0 +1,5 @@
+fastapi
+uvicorn
+strawberry-graphql[debug-server]
+aiosqlite
+sqlalchemy[asyncio]

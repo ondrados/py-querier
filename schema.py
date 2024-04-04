@@ -20,6 +20,11 @@ class Book:
 
 
 @strawberry.type
+class BookExists:
+    message: str = "Book with this name already exists"
+
+
+@strawberry.type
 class AuthorExists:
     message: str = "Author with this name already exists"
 
@@ -34,7 +39,7 @@ class AuthorNameMissing:
     message: str = "Please supply an author name"
 
 
-AddBookResponse = strawberry.union("AddBookResponse", (Book, AuthorNotFound))
+AddBookResponse = strawberry.union("AddBookResponse", (Book, BookExists, AuthorNotFound))
 AddAuthorResponse = strawberry.union("AddAuthorResponse", (Author, AuthorExists))
 
 
@@ -79,8 +84,12 @@ class BookInput:
     author: AuthorInput
 
 
-async def add_book(book: BookInput):
+async def add_book(book: BookInput) -> AddBookResponse:
     async with get_session() as s:
+        sql = select(models.Book).where(models.Book.name == book.name)
+        existing_db_book = (await s.execute(sql)).first()
+        if existing_db_book is not None:
+            return BookExists()
         sql = select(models.Author).where(models.Author.name == book.author.name)
         db_author = (await s.execute(sql)).scalars().first()
         if not db_author:
@@ -98,7 +107,7 @@ async def add_book(book: BookInput):
     )
 
 
-async def add_author(author: AuthorInput):
+async def add_author(author: AuthorInput) -> AddAuthorResponse:
     async with get_session() as s:
         sql = select(models.Author).where(models.Author.name == author.name)
         existing_db_author = (await s.execute(sql)).first()
@@ -118,23 +127,39 @@ class Mutation:
     """
     mutation AddBook {
       addBook(book: {name: "New Book", author: {name: "Author Test"}}) {
-        id
-        name
-        author {
+        __typename
+        ... on Book {
           id
           name
+          author {
+            id
+            name
+          }
         }
+        ... on BookExists {
+          message
+        }
+        ... on AuthorNotFound {
+          message
+        }
+
       }
     }
     mutation AddAuthor {
-      addAuthor(author: {name: "New Author"}) {
-        id
-        name
+      addAuthor(author: {name: "John Doe"}) {
+        __typename
+        ... on Author {
+          id
+          name
+        }
+        ... on AuthorExists {
+          __typename
+        }
       }
     }
     """
-    addBook: Book = strawberry.field(resolver=add_book)
-    addAuthor: Author = strawberry.field(resolver=add_author)
+    addBook: AddBookResponse = strawberry.field(resolver=add_book)
+    addAuthor: AddAuthorResponse = strawberry.field(resolver=add_author)
 
 
 schema = strawberry.Schema(query=Query, mutation=Mutation)

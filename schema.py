@@ -1,5 +1,8 @@
+import typing
+
 import strawberry
 from sqlalchemy import select
+from strawberry import BasePermission
 
 import models
 
@@ -85,6 +88,21 @@ async def get_authors():
         name=author.name
     ) for author in db_authors]
 
+
+def authenticate_header(request) -> bool:
+    header = request.headers["Authorization"]
+    token = header.split(" ")[1]
+    return token == "secret"
+
+
+class IsAuthenticated(BasePermission):
+    message = "User is not authenticated"
+
+    def has_permission(self, source: typing.Any, info: strawberry.Info, **kwargs) -> bool:
+        request = info.context["request"]
+        if "Authorization" in request.headers:
+            return authenticate_header(request)
+        return False
 
 @strawberry.type
 class Query:
@@ -177,8 +195,8 @@ class Mutation:
       }
     }
     """
-    addBook: AddBookResponse = strawberry.field(resolver=add_book)
-    addAuthor: AddAuthorResponse = strawberry.field(resolver=add_author)
+    addBook: AddBookResponse = strawberry.field(resolver=add_book, permission_classes=[IsAuthenticated])
+    addAuthor: AddAuthorResponse = strawberry.field(resolver=add_author, permission_classes=[IsAuthenticated])
 
 
 schema = strawberry.Schema(query=Query, mutation=Mutation)

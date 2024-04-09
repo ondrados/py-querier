@@ -4,9 +4,8 @@ import strawberry
 from sqlalchemy import select
 from strawberry import BasePermission
 
-import models
-
-from db import get_session
+from app import models
+from app.db import get_session
 
 
 async def get_books_by_author(author_id: int):
